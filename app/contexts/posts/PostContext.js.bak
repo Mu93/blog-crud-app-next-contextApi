@@ -1,0 +1,147 @@
+import React, { createContext, useReducer, useContext, useEffect } from 'react'
+import axios from 'axios'
+
+// Define the context
+const PostContext = createContext()
+
+// Define action types
+const IDLE = 'IDLE'
+const PENDING = 'PENDING'
+const SUCCESS = 'SUCCESS'
+const ERROR = 'ERROR'
+
+// Define the initial state
+const initialState = {
+  status: IDLE,
+  posts: [],
+  error: null,
+}
+
+// Define action types for CRUD operations
+const CREATE_POST = 'CREATE_POST'
+const UPDATE_POST = 'UPDATE_POST'
+const DELETE_POST = 'DELETE_POST'
+
+// Define the reducer function
+const reducer = (state, action) => {
+  switch (action.type) {
+    case IDLE:
+      return { ...state, status: IDLE, posts: [], error: null }
+    case PENDING:
+      return { ...state, status: PENDING, posts: [], error: null }
+    case SUCCESS:
+      return { ...state, status: SUCCESS, posts: action.payload, error: null }
+    case ERROR:
+      return { ...state, status: ERROR, posts: [], error: action.payload }
+    case CREATE_POST:
+      return { ...state, posts: [...state.posts, action.payload] }
+    case UPDATE_POST:
+      const updatedPosts = state.posts.map((post) =>
+        post.id === action.payload.id ? action.payload : post,
+      )
+      return { ...state, posts: updatedPosts }
+    case DELETE_POST:
+      const filteredPosts = state.posts.filter(
+        (post) => post.id !== action.payload,
+      )
+      return { ...state, posts: filteredPosts }
+    default:
+      return state
+  }
+}
+
+// Define the context provider
+const PostProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(reducer, initialState)
+
+  const fetchPosts = async () => {
+    dispatch({ type: PENDING })
+
+    try {
+      const response = await axios.get(
+        'https://jsonplaceholder.typicode.com/posts',
+      )
+      dispatch({ type: SUCCESS, payload: response.data })
+    } catch (error) {
+      dispatch({ type: ERROR, payload: error.message })
+    }
+  }
+
+  const createPost = async (newPost) => {
+    try {
+      const response = await axios.post(
+        'https://jsonplaceholder.typicode.com/posts',
+        newPost,
+      )
+      console.log(response.data)
+      dispatch({ type: CREATE_POST, payload: response.data })
+    } catch (error) {
+      dispatch({ type: ERROR, payload: error.message })
+    }
+  }
+
+  const updatePost = async (updatedPost) => {
+    try {
+      const response = await axios.put(
+        `https://jsonplaceholder.typicode.com/posts/${updatedPost.id}`,
+        updatedPost,
+      )
+      dispatch({ type: UPDATE_POST, payload: response.data })
+    } catch (error) {
+      dispatch({ type: ERROR, payload: error.message })
+    }
+  }
+
+  const deletePost = async (postId) => {
+    try {
+      await axios.delete(`https://jsonplaceholder.typicode.com/posts/${postId}`)
+      dispatch({ type: DELETE_POST, payload: postId })
+    } catch (error) {
+      dispatch({ type: ERROR, payload: error.message })
+    }
+  }
+
+  const fetchSinglePost = async (postId) => {
+    dispatch({ type: PENDING })
+
+    try {
+      const response = await axios.get(
+        `https://jsonplaceholder.typicode.com/posts/${postId}`,
+      )
+      dispatch({ type: SUCCESS, payload: [response.data] })
+    } catch (error) {
+      dispatch({ type: ERROR, payload: error.message })
+    }
+  }
+
+  // Trigger the fetchPosts function when the component mounts
+  useEffect(() => {
+    fetchPosts()
+  }, [])
+
+  return (
+    <PostContext.Provider
+      value={{
+        state,
+        fetchPosts,
+        createPost,
+        updatePost,
+        deletePost,
+        fetchSinglePost,
+      }}
+    >
+      {children}
+    </PostContext.Provider>
+  )
+}
+
+// Define a custom hook to access the context
+const usePostContext = () => {
+  const context = useContext(PostContext)
+  if (!context) {
+    throw new Error('usePostContext must be used within a PostProvider')
+  }
+  return context
+}
+
+export { PostProvider, usePostContext }
